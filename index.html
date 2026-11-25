@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#000000">
+<title>Pink Reveal</title>
+<style>
+  :root { --pink: #FF69B4; --pink-dark: #C2185B; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    background: #000; color: #fff; overflow: hidden;
+    overscroll-behavior: none; touch-action: none;
+    -webkit-user-select: none; user-select: none;
+    -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Segoe UI", sans-serif;
+  }
+  body { position: fixed; inset: 0; }
+  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; background: #000; }
+  button { font: inherit; touch-action: manipulation; -webkit-user-select: none; user-select: none; }
+  .hidden { display: none !important; }
+
+  .screen {
+    position: fixed; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 16px;
+    padding: 24px; box-sizing: border-box;
+  }
+  #title { background: #000; z-index: 10; }
+  .logo { margin: 0; font-size: 44px; line-height: 1; font-weight: 900; letter-spacing: 2px; text-align: center; color: var(--pink); text-shadow: 0 0 18px rgba(255,105,180,.55); }
+  .logo small { display: block; margin-top: 10px; font-size: 13px; letter-spacing: 1px; font-weight: 600; color: #fff; text-shadow: none; opacity: .8; }
+  #preview-box {
+    width: 180px; height: 240px; border-radius: 14px; border: 2px dashed rgba(255,105,180,.6);
+    display: flex; align-items: center; justify-content: center; overflow: hidden; background: #0b0b0b;
+  }
+  #preview-box.has-image { border-style: solid; border-color: var(--pink); }
+  #preview { width: 100%; height: 100%; display: block; }
+  #preview-empty { font-size: 13px; opacity: .6; }
+  .btn {
+    min-width: 230px; padding: 14px 22px; border-radius: 999px; font-size: 17px; font-weight: 800;
+    border: 2px solid var(--pink); color: #fff; background: transparent; cursor: pointer;
+  }
+  .btn-pink { background: var(--pink); }
+  .btn:disabled { opacity: .3; cursor: default; }
+  .note { font-size: 11px; opacity: .5; text-align: center; margin: 0; }
+  #file { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+
+  #gear {
+    position: fixed; z-index: 30;
+    top: calc(env(safe-area-inset-top, 0px) + 8px); left: calc(env(safe-area-inset-left, 0px) + 8px);
+    width: 36px; height: 36px; border-radius: 50%; border: none; padding: 0;
+    background: rgba(0,0,0,.45); color: #fff; font-size: 20px; line-height: 36px; opacity: .6;
+  }
+
+  #settings { z-index: 40; background: rgba(0,0,0,.6); }
+  .panel {
+    width: min(320px, 100%); background: #111; border: 2px solid var(--pink); border-radius: 18px;
+    padding: 20px; box-sizing: border-box; display: flex; flex-direction: column; gap: 16px;
+  }
+  .panel h2 { margin: 0; font-size: 18px; color: var(--pink); }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 15px; font-weight: 700; }
+  .switch { appearance: none; -webkit-appearance: none; width: 50px; height: 28px; border-radius: 14px; background: #444; position: relative; margin: 0; cursor: pointer; transition: background .15s; }
+  .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; transition: left .15s; }
+  .switch:checked { background: var(--pink); }
+  .switch:checked::after { left: 25px; }
+  .seg { display: flex; border: 2px solid var(--pink); border-radius: 10px; overflow: hidden; }
+  .seg button { border: none; background: transparent; color: #fff; padding: 7px 10px; font-size: 13px; font-weight: 700; }
+  .seg button.on { background: var(--pink); }
+  .panel .btn { min-width: 0; width: 100%; }
+
+  #end { z-index: 20; }
+  #end.over { background: rgba(0,0,0,.3); }
+  #end.clear { justify-content: flex-end; padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 22%); }
+  #end-title { font-size: 52px; font-weight: 900; letter-spacing: 2px; color: var(--pink); text-shadow: 0 0 6px #000, 0 0 22px rgba(255,105,180,.8); -webkit-text-stroke: 1.5px #fff; margin-bottom: 18px; }
+  #end.clear #end-title { display: none; }
+  #end .btn { background: rgba(0,0,0,.55); }
+  #end .btn-pink { background: var(--pink); }
+
+  #debug {
+    position: fixed; z-index: 25; right: 8px; top: 64%;
+    display: flex; flex-direction: column; gap: 6px; align-items: flex-end;
+  }
+  #debug button { width: 52px; padding: 8px 0; border-radius: 10px; border: 2px solid #0f0; background: rgba(0,0,0,.6); color: #0f0; font-weight: 800; }
+  #fps { font: 700 11px/1.2 monospace; color: #0f0; background: rgba(0,0,0,.6); padding: 3px 5px; border-radius: 4px; white-space: pre; text-align: right; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<!-- タイトル画面 -->
+<div id="title" class="screen">
+  <h1 class="logo">PINK REVEAL<small>ブロックを壊すと、画像が見えてくる</small></h1>
+  <div id="preview-box"><canvas id="preview" class="hidden"></canvas><span id="preview-empty">画像が未選択です</span></div>
+  <input id="file" type="file" accept="image/*">
+  <button id="pick" class="btn">画像を選ぶ</button>
+  <button id="start" class="btn btn-pink" disabled>ゲームスタート</button>
+  <p class="note">画像はこの端末の中だけで使われ、どこにも送信されません</p>
+</div>
+
+<!-- 終了画面 -->
+<div id="end" class="screen hidden">
+  <div id="end-title">GAME OVER</div>
+  <button id="retry" class="btn btn-pink">もう一度（同じ画像）</button>
+  <button id="to-title" class="btn">タイトルへ</button>
+</div>
+
+<!-- 設定 -->
+<button id="gear" aria-label="設定">⚙</button>
+<div id="settings" class="screen hidden">
+  <div class="panel">
+    <h2>設定</h2>
+    <label class="row"><span>HUD表示</span><input type="checkbox" class="switch" id="opt-hud"></label>
+    <label class="row"><span>効果音</span><input type="checkbox" class="switch" id="opt-sound"></label>
+    <div class="row"><span>ボール速度</span>
+      <div class="seg" id="opt-speed">
+        <button data-v="slow">遅い</button><button data-v="normal">普通</button><button data-v="fast">速い</button>
+      </div>
+    </div>
+    <button id="settings-close" class="btn btn-pink">閉じる</button>
+  </div>
+</div>
+
+<!-- デバッグ（?debug=1 のときだけ表示） -->
+<div id="debug" class="hidden">
+  <div id="fps">FPS --</div>
+  <button data-item="x3">×3</button>
+  <button data-item="p3">+3</button>
+  <button data-item="fire">🔥</button>
+</div>
+
+<script>
+'use strict';
+// =====================================================================
+//  調整用の定数（README に一覧あり）
+// =====================================================================
+const BLOCK_COLS = 10;                 // ブロックの列数
+const BLOCK_ROWS = 14;                 // ブロックの行数
+const BLOCK_AREA_RATIO = 0.6;          // 画面上部のうちブロック領域が占める割合
+const BLOCK_COLOR = '#FF69B4';         // ブロックの基本色
+const BLOCK_BORDER_COLOR = '#C2185B';  // ブロックの枠線色
+const BLOCK_HIGHLIGHT = 'rgba(255,255,255,0.28)'; // 上辺のハイライト
+const BLOCK_SCORE = 10;                // 1ブロックの得点
+
+const ITEM_PROB_X3 = 0.2;              // ×3 の確率      (r < 0.2)
+const ITEM_PROB_P3 = 0.2;              // +3 の確率      (0.2 <= r < 0.4)
+const ITEM_PROB_FIRE = 0.2;            // 🔥 の確率      (0.4 <= r < 0.6 かつ残り80%以上)
+const FIRE_MIN_REMAINING_RATIO = 0.8;  // 🔥が出るのに必要な残りブロック割合
+const ITEM_FALL_SPEED = 170;           // アイテムの落下速度（論理px/秒）
+
+const MAX_BALLS = 300;                 // ボール数の上限
+const BALL_SPEEDS = { slow: 300, normal: 420, fast: 560 }; // ボール速度（論理px/秒、画面幅=360）
+const BALL_RADIUS = 5;                 // ボールの半径
+const BALL_COLOR = '#FFFFFF';
+const FIRE_COLOR = '#FF8C1A';          // 🔥状態のボールの色
+const FIRE_TRAIL_LEN = 6;              // 🔥の残像の数
+const MIN_VERTICAL_ANGLE_DEG = 15;     // ほぼ水平に飛び続けないための最小角度
+const X3_SPREAD_MIN_DEG = 15;          // ×3 の複製角度（最小）
+const X3_SPREAD_MAX_DEG = 30;          // ×3 の複製角度（最大）
+const P3_SPREAD_DEG = 25;              // +3 の扇の角度
+
+const PADDLE_WIDTH = 76;               // パドルの幅（論理px）
+const PADDLE_HEIGHT = 10;
+const PADDLE_Y_RATIO = 0.84;           // パドルの縦位置（画面高さに対する割合）
+const PADDLE_COLOR = '#FFFFFF';
+const PADDLE_SENSITIVITY = 1.0;        // 指の移動量に対するパドル移動量の倍率
+const MAX_BOUNCE_ANGLE_DEG = 60;       // パドル端に当たったときの最大反射角
+
+const CLEAR_TEXT_DURATION = 3.0;       // 「CLEAR!」を表示する秒数
+const LOGICAL_WIDTH = 360;             // ゲーム内部の横幅（論理px）
+const MAX_DPR = 3;                     // devicePixelRatio の上限
+const MAX_IMAGE_SIDE = 2048;           // 読み込み画像の長辺の上限（px）
+const MAX_PARTICLES = 800;
+const PARTICLES_PER_BLOCK = 6;
+const PARTICLE_COLORS = ['#FF69B4', '#FF9ACB', '#FFC1E0', '#C2185B'];
+
+// =====================================================================
+const DEG = Math.PI / 180;
+const DEBUG = new URLSearchParams(location.search).get('debug') === '1';
+const TOTAL_BLOCKS = BLOCK_COLS * BLOCK_ROWS;
+document.documentElement.style.setProperty('--pink', BLOCK_COLOR);
+document.documentElement.style.setProperty('--pink-dark', BLOCK_BORDER_COLOR);
+
+const $ = (id) => document.getElementById(id);
+const canvas = $('game');
+const ctx = canvas.getContext('2d', { alpha: false });
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+const rand = (a, b) => a + Math.random() * (b - a);
+
+// ---------- 設定（端末内のlocalStorageに保存。使えなくても動く） ----------
+const settings = { hud: true, sound: true, speed: 'normal' };
+try {
+  const s = JSON.parse(localStorage.getItem('pinkreveal-settings') || '{}');
+  if (typeof s.hud === 'boolean') settings.hud = s.hud;
+  if (typeof s.sound === 'boolean') settings.sound = s.sound;
+  if (BALL_SPEEDS[s.speed]) settings.speed = s.speed;
+} catch (e) {}
+function saveSettings() { try { localStorage.setItem('pinkreveal-settings', JSON.stringify(settings)); } catch (e) {} }
+const ballSpeed = () => BALL_SPEEDS[settings.speed];
+
+// ---------- 画面・レイアウト ----------
+let dpr = 1, cw = 1, ch = 1;
+const LW = LOGICAL_WIDTH;
+let LH = 640, scale = 1, offX = 0, offY = 0;
+let regionH = 384, blockW = 36, blockH = 27, paddleY = 540;
+
+// ---------- 状態 ----------
+let state = 'title';   // title | ready | playing | clear | over
+let paused = false;
+let score = 0, remaining = TOTAL_BLOCKS, clearT = 0, flash = 0, flashColor = '#fff';
+const alive = new Uint8Array(TOTAL_BLOCKS);
+const paddle = { x: LW / 2 };
+
+// ---------- 画像とレイヤー ----------
+let srcCanvas = null;                         // 縮小済みの元画像
+const imageLayer = document.createElement('canvas'); // ブロック領域に cover で敷いた画像
+const blockLayer = document.createElement('canvas'); // 画像＋残りブロック（壊すたびに部分更新）
+let imageCtx = imageLayer.getContext('2d');
+let blockCtx = blockLayer.getContext('2d');
+const colEdges = new Int32Array(BLOCK_COLS + 1);
+const rowEdges = new Int32Array(BLOCK_ROWS + 1);
+let layerX = 0, layerY = 0;
+
+// ---------- ボール（オブジェクトを使い回す） ----------
+function makeBall() { return { x: 0, y: 0, vx: 0, vy: 0, fire: false, trail: new Float32Array(FIRE_TRAIL_LEN * 2), th: 0 }; }
+const balls = []; for (let i = 0; i < MAX_BALLS; i++) balls.push(makeBall());
+let ballCount = 0;
+function resetTrail(b) { for (let k = 0; k < FIRE_TRAIL_LEN; k++) { b.trail[k * 2] = b.x; b.trail[k * 2 + 1] = b.y; } b.th = 0; }
+function pushTrail(b) { b.trail[b.th * 2] = b.x; b.trail[b.th * 2 + 1] = b.y; b.th = (b.th + 1) % FIRE_TRAIL_LEN; }
+function addBall(x, y, vx, vy, fire) {
+  if (ballCount >= MAX_BALLS) return null;
+  const b = balls[ballCount++];
+  b.x = x; b.y = y; b.vx = vx; b.vy = vy; b.fire = fire;
+  resetTrail(b);
+  return b;
+}
+function removeBall(i) {
+  ballCount--;
+  const t = balls[i]; balls[i] = balls[ballCount]; balls[ballCount] = t;
+}
+// ほぼ水平な向きを防ぐ（速度の大きさは維持）
+function fixShallow(b) {
+  const sp = Math.hypot(b.vx, b.vy) || ballSpeed();
+  const minVy = sp * Math.sin(MIN_VERTICAL_ANGLE_DEG * DEG);
+  if (Math.abs(b.vy) < minVy) {
+    const sy = b.vy < 0 ? -1 : (b.vy > 0 ? 1 : -1);
+    const sx = b.vx < 0 ? -1 : 1;
+    b.vy = sy * minVy;
+    b.vx = sx * Math.sqrt(sp * sp - minVy * minVy);
+  }
+}
+
+// ---------- アイテム ----------
+const ITEM_W = 38, ITEM_H = 18;
+const ITEM_LABEL = { x3: '×3', p3: '+3', fire: '🔥' };
+const ITEM_POOL_SIZE = TOTAL_BLOCKS + 64;
+const items = []; for (let i = 0; i < ITEM_POOL_SIZE; i++) items.push({ x: 0, y: 0, type: 'x3' });
+let itemCount = 0;
+function spawnItem(type, x, y) {
+  if (itemCount >= ITEM_POOL_SIZE) return;
+  const it = items[itemCount++]; it.type = type; it.x = x; it.y = y;
+}
+
+/**
+ * アイテム抽選。乱数は1回だけ引く。1ブロックにつき最大1個。
+ * remainingAfter = このブロックを壊した後に残っているブロック数
+ * 戻り値: 'x3' | 'p3' | 'fire' | null
+ */
+function rollItem(remainingAfter, total) {
+  const r = Math.random();
+  if (r < ITEM_PROB_X3) return 'x3';
+  if (r < ITEM_PROB_X3 + ITEM_PROB_P3) return 'p3';
+  if (r < ITEM_PROB_X3 + ITEM_PROB_P3 + ITEM_PROB_FIRE && remainingAfter >= total * FIRE_MIN_REMAINING_RATIO) return 'fire';
+  return null;
+}
+
+// ---------- パーティクル（型付き配列で使い回す） ----------
+const pX = new Float32Array(MAX_PARTICLES), pY = new Float32Array(MAX_PARTICLES);
+const pVX = new Float32Array(MAX_PARTICLES), pVY = new Float32Array(MAX_PARTICLES);
+const pLife = new Float32Array(MAX_PARTICLES), pMax = new Float32Array(MAX_PARTICLES);
+const pSize = new Float32Array(MAX_PARTICLES), pCol = new Uint8Array(MAX_PARTICLES);
+let pCount = 0;
+function spawnParticle(x, y, vx, vy, life, size, col) {
+  if (pCount >= MAX_PARTICLES) return;
+  const i = pCount++;
+  pX[i] = x; pY[i] = y; pVX[i] = vx; pVY[i] = vy; pLife[i] = life; pMax[i] = life; pSize[i] = size; pCol[i] = col;
+}
+function updateParticles(dt) {
+  for (let i = pCount - 1; i >= 0; i--) {
+    pLife[i] -= dt;
+    if (pLife[i] <= 0) {
+      const j = --pCount;
+      pX[i] = pX[j]; pY[i] = pY[j]; pVX[i] = pVX[j]; pVY[i] = pVY[j];
+      pLife[i] = pLife[j]; pMax[i] = pMax[j]; pSize[i] = pSize[j]; pCol[i] = pCol[j];
+      continue;
+    }
+    pVY[i] += 700 * dt;
+    pX[i] += pVX[i] * dt; pY[i] += pVY[i] * dt;
+  }
+}
+
+// ---------- ポップアップ文字 ----------
+const popups = []; // {text, x, y, t, color}
+function addPopup(text, x, y, color) {
+  if (popups.length > 10) popups.shift();
+  popups.push({ text, x, y, t: 0, color });
+}
+
+// =====================================================================
+//  効果音（WebAudioで生成）
+// =====================================================================
+let actx = null, master = null, lastBlockSfx = 0;
+function ensureAudio() {
+  if (!actx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    try { actx = new AC(); master = actx.createGain(); master.gain.value = 0.5; master.connect(actx.destination); } catch (e) { actx = null; return; }
+  }
+  if (actx.state === 'suspended') actx.resume();
+}
+function tone(freq, dur, type, vol, when, slideTo) {
+  if (!settings.sound || !actx) return;
+  const t = actx.currentTime + (when || 0);
+  const o = actx.createOscillator(), g = actx.createGain();
+  o.type = type || 'square';
+  o.frequency.setValueAtTime(freq, t);
+  if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
+  g.gain.setValueAtTime(vol || 0.08, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(master);
+  o.start(t); o.stop(t + dur + 0.02);
+}
+function sfx(name) {
+  if (!settings.sound || !actx) return;
+  switch (name) {
+    case 'block': {
+      const now = actx.currentTime;
+      if (now - lastBlockSfx < 0.035) return; // 大量破壊時に鳴りすぎないよう間引く
+      lastBlockSfx = now;
+      tone(rand(820, 1150), 0.06, 'square', 0.05);
+      break;
+    }
+    case 'paddle': tone(330, 0.07, 'triangle', 0.12); break;
+    case 'launch': tone(440, 0.08, 'triangle', 0.1, 0, 880); break;
+    case 'x3': [660, 880, 1320].forEach((f, i) => tone(f, 0.09, 'square', 0.07, i * 0.06)); break;
+    case 'p3': [523, 659, 784].forEach((f, i) => tone(f, 0.09, 'triangle', 0.12, i * 0.06)); break;
+    case 'fire': tone(180, 0.35, 'sawtooth', 0.09, 0, 900); break;
+    case 'clear': [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.18, 'triangle', 0.14, i * 0.12)); break;
+    case 'over': tone(440, 0.6, 'sawtooth', 0.08, 0, 110); break;
+  }
+}
+
+// =====================================================================
+//  レイアウト・描画レイヤー
+// =====================================================================
+function chooseLH() {
+  // 縦長スマホでは画面いっぱい、横に広い画面では 9:16 で表示
+  return clamp(LW * (window.innerHeight / window.innerWidth), LW * 16 / 9, LW * 2.25);
+}
+function layout() {
+  dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+  cw = window.innerWidth; ch = window.innerHeight;
+  canvas.width = Math.round(cw * dpr); canvas.height = Math.round(ch * dpr);
+  scale = Math.min(cw / LW, ch / LH);
+  offX = (cw - LW * scale) / 2; offY = (ch - LH * scale) / 2;
+  if (state !== 'title' && srcCanvas) buildLayers();
+}
+function drawCover(c, img, dx, dy, dw, dh) {
+  const ir = img.width / img.height, rr = dw / dh;
+  let sx, sy, sw, sh;
+  if (ir > rr) { sh = img.height; sw = sh * rr; sx = (img.width - sw) / 2; sy = 0; }
+  else { sw = img.width; sh = sw / rr; sx = 0; sy = (img.height - sh) / 2; }
+  c.imageSmoothingEnabled = true; c.imageSmoothingQuality = 'high';
+  c.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
+}
+function containRect(img, W, H) {
+  const k = Math.min(W / img.width, H / img.height);
+  const w = img.width * k, h = img.height * k;
+  return [(W - w) / 2, (H - h) / 2, w, h];
+}
+function buildLayers() {
+  const s = scale * dpr;
+  layerX = Math.round(offX * dpr); layerY = Math.round(offY * dpr);
+  const w = Math.max(1, Math.round(LW * s)), h = Math.max(1, Math.round(regionH * s));
+  imageLayer.width = w; imageLayer.height = h;
+  blockLayer.width = w; blockLayer.height = h;
+  imageCtx = imageLayer.getContext('2d'); blockCtx = blockLayer.getContext('2d');
+  for (let c = 0; c <= BLOCK_COLS; c++) colEdges[c] = Math.round(c * w / BLOCK_COLS);
+  for (let r = 0; r <= BLOCK_ROWS; r++) rowEdges[r] = Math.round(r * h / BLOCK_ROWS);
+  imageCtx.fillStyle = '#000'; imageCtx.fillRect(0, 0, w, h);
+  drawCover(imageCtx, srcCanvas, 0, 0, w, h);
+  blockCtx.drawImage(imageLayer, 0, 0);
+  for (let i = 0; i < TOTAL_BLOCKS; i++) if (alive[i]) drawBlockCell(i);
+}
+// ブロックは整数ピクセルの矩形で隙間なく敷き詰める（画像が透けない）
+function drawBlockCell(i) {
+  const c = i % BLOCK_COLS, r = (i / BLOCK_COLS) | 0;
+  const x0 = colEdges[c], x1 = colEdges[c + 1], y0 = rowEdges[r], y1 = rowEdges[r + 1];
+  const w = x1 - x0, h = y1 - y0;
+  const bc = blockCtx;
+  bc.fillStyle = BLOCK_COLOR; bc.fillRect(x0, y0, w, h);
+  bc.fillStyle = BLOCK_HIGHLIGHT; bc.fillRect(x0, y0, w, Math.max(1, Math.round(h * 0.14)));
+  const lw = Math.max(1, Math.round(dpr * 0.75));
+  bc.fillStyle = BLOCK_BORDER_COLOR;
+  bc.fillRect(x0, y0, w, lw); bc.fillRect(x0, y1 - lw, w, lw);
+  bc.fillRect(x0, y0, lw, h); bc.fillRect(x1 - lw, y0, lw, h);
+}
+function revealCell(i) {
+  const c = i % BLOCK_COLS, r = (i / BLOCK_COLS) | 0;
+  const x0 = colEdges[c], y0 = rowEdges[r];
+  const w = colEdges[c + 1] - x0, h = rowEdges[r + 1] - y0;
+  if (w > 0 && h > 0) blockCtx.drawImage(imageLayer, x0, y0, w, h, x0, y0, w, h);
+}
+
+// =====================================================================
+//  ゲーム進行
+// =====================================================================
+function startGame() {
+  ensureAudio();
+  LH = chooseLH();
+  regionH = LH * BLOCK_AREA_RATIO;
+  blockW = LW / BLOCK_COLS; blockH = regionH / BLOCK_ROWS;
+  paddleY = LH * PADDLE_Y_RATIO;
+  alive.fill(1); remaining = TOTAL_BLOCKS; score = 0;
+  ballCount = 0; itemCount = 0; pCount = 0; popups.length = 0; flash = 0; clearT = 0;
+  paddle.x = LW / 2;
+  addBall(paddle.x, paddleY - PADDLE_HEIGHT / 2 - BALL_RADIUS - 0.5, 0, 0, false);
+  state = 'ready';
+  $('title').classList.add('hidden');
+  $('end').classList.add('hidden');
+  if (DEBUG) $('debug').classList.remove('hidden');
+  layout();
+}
+function toTitle() {
+  state = 'title';
+  ballCount = 0; itemCount = 0; pCount = 0;
+  $('end').classList.add('hidden');
+  $('debug').classList.add('hidden');
+  $('title').classList.remove('hidden');
+}
+function launch() {
+  if (state !== 'ready') return;
+  const b = balls[0], sp = ballSpeed(), a = rand(-10, 10) * DEG;
+  b.vx = sp * Math.sin(a); b.vy = -sp * Math.cos(a);
+  state = 'playing';
+  sfx('launch');
+}
+function onClear() {
+  state = 'clear'; clearT = 0;
+  ballCount = 0; itemCount = 0; popups.length = 0;
+  for (let i = 0; i < 140; i++) {
+    spawnParticle(rand(0, LW), rand(-20, LH * 0.4), rand(-120, 120), rand(-300, 50), rand(0.9, 1.8), rand(2.5, 4.5), (Math.random() * 4) | 0);
+  }
+  $('debug').classList.add('hidden');
+  sfx('clear');
+}
+function onGameOver() {
+  state = 'over';
+  itemCount = 0;
+  const end = $('end');
+  end.className = 'screen over';
+  $('end-title').textContent = 'GAME OVER';
+  sfx('over');
+}
+function showClearButtons(show) {
+  const end = $('end');
+  end.className = 'screen clear' + (show ? '' : ' hidden');
+}
+
+function breakBlock(i) {
+  alive[i] = 0; remaining--; score += BLOCK_SCORE;
+  revealCell(i);
+  const c = i % BLOCK_COLS, r = (i / BLOCK_COLS) | 0;
+  const cx = (c + 0.5) * blockW, cy = (r + 0.5) * blockH;
+  for (let k = 0; k < PARTICLES_PER_BLOCK; k++) {
+    spawnParticle(cx + rand(-blockW / 3, blockW / 3), cy + rand(-blockH / 3, blockH / 3), rand(-140, 140), rand(-220, 40), rand(0.35, 0.7), rand(2, 3.5), (Math.random() * 4) | 0);
+  }
+  sfx('block');
+  const type = rollItem(remaining, TOTAL_BLOCKS);
+  if (type) spawnItem(type, cx, cy);
+}
+// ボールの外接矩形と重なっている生存ブロックを壊す。壊した数を返す。
+function hitBlocks(b) {
+  const r = BALL_RADIUS;
+  const top = b.y - r;
+  if (top >= regionH) return 0;
+  let r0 = Math.floor(top / blockH), r1 = Math.floor((b.y + r - 1e-6) / blockH);
+  let c0 = Math.floor((b.x - r) / blockW), c1 = Math.floor((b.x + r - 1e-6) / blockW);
+  if (r0 < 0) r0 = 0; if (r1 > BLOCK_ROWS - 1) r1 = BLOCK_ROWS - 1;
+  if (c0 < 0) c0 = 0; if (c1 > BLOCK_COLS - 1) c1 = BLOCK_COLS - 1;
+  let hits = 0;
+  for (let rr = r0; rr <= r1; rr++) {
+    for (let cc = c0; cc <= c1; cc++) {
+      const i = rr * BLOCK_COLS + cc;
+      if (alive[i]) { breakBlock(i); hits++; }
+    }
+  }
+  return hits;
+}
+// 1サブステップ進める。画面下に落ちたら true
+function stepBall(b, h) {
+  const r = BALL_RADIUS;
+  // 横方向
+  const ox = b.x;
+  b.x += b.vx * h;
+  if (hitBlocks(b) && !b.fire) { b.x = ox; b.vx = -b.vx; }
+  if (b.x < r) { b.x = r; b.vx = Math.abs(b.vx); }
+  else if (b.x > LW - r) { b.x = LW - r; b.vx = -Math.abs(b.vx); }
+  // 縦方向
+  const oy = b.y;
+  b.y += b.vy * h;
+  if (hitBlocks(b) && !b.fire) { b.y = oy; b.vy = -b.vy; }
+  if (b.y < r) { b.y = r; b.vy = Math.abs(b.vy); }
+  // パドル
+  if (b.vy > 0) {
+    const top = paddleY - PADDLE_HEIGHT / 2;
+    if (oy + r <= top + 0.001 && b.y + r >= top && Math.abs(b.x - paddle.x) <= PADDLE_WIDTH / 2 + r) {
+      const t = clamp((b.x - paddle.x) / (PADDLE_WIDTH / 2 + r), -1, 1);
+      const a = t * MAX_BOUNCE_ANGLE_DEG * DEG, sp = ballSpeed();
+      b.vx = sp * Math.sin(a); b.vy = -sp * Math.cos(a);
+      b.y = top - r;
+      b.fire = false; // 🔥はパドルに触れたボールだけ解除
+      sfx('paddle');
+    }
+  }
+  return b.y - r > LH;
+}
+
+function activateItem(type) {
+  if (state === 'ready') launch();
+  if (state !== 'playing') return;
+  const sp = ballSpeed();
+  const before = ballCount;
+  if (type === 'x3') {
+    const n = ballCount;
+    outer: for (let i = 0; i < n; i++) {
+      const src = balls[i];
+      for (let s = -1; s <= 1; s += 2) {
+        if (ballCount >= MAX_BALLS) break outer;
+        const a = s * rand(X3_SPREAD_MIN_DEG, X3_SPREAD_MAX_DEG) * DEG;
+        const cs = Math.cos(a), sn = Math.sin(a);
+        const b = addBall(src.x, src.y, src.vx * cs - src.vy * sn, src.vx * sn + src.vy * cs, src.fire);
+        if (b) fixShallow(b);
+      }
+    }
+    triggerFx('×3!', '#FFFFFF');
+    sfx('x3');
+  } else if (type === 'p3') {
+    const y = paddleY - PADDLE_HEIGHT / 2 - BALL_RADIUS - 1;
+    for (let k = -1; k <= 1; k++) {
+      const a = k * P3_SPREAD_DEG * DEG;
+      addBall(paddle.x, y, sp * Math.sin(a), -sp * Math.cos(a), false);
+    }
+    triggerFx('+3!', BLOCK_COLOR);
+    sfx('p3');
+  } else if (type === 'fire') {
+    for (let i = 0; i < ballCount; i++) { balls[i].fire = true; resetTrail(balls[i]); }
+    triggerFx('🔥 FIRE!', FIRE_COLOR);
+    sfx('fire');
+  }
+  if (DEBUG) console.log(`[item] ${ITEM_LABEL[type]}  ボール数 ${before} → ${ballCount}` + (type === 'x3' ? `（期待値 ${Math.min(before * 3, MAX_BALLS)}）` : ''));
+}
+function triggerFx(text, color) {
+  flash = 0.35; flashColor = color;
+  addPopup(text, clamp(paddle.x, 60, LW - 60), paddleY - 40, color);
+}
+
+function updateItems(dt) {
+  const pTop = paddleY - PADDLE_HEIGHT / 2, pBot = paddleY + PADDLE_HEIGHT / 2;
+  for (let i = itemCount - 1; i >= 0; i--) {
+    const it = items[i];
+    it.y += ITEM_FALL_SPEED * dt;
+    let remove = false;
+    if (it.y + ITEM_H / 2 >= pTop && it.y - ITEM_H / 2 <= pBot && Math.abs(it.x - paddle.x) <= (PADDLE_WIDTH + ITEM_W) / 2) {
+      activateItem(it.type); remove = true;
+    } else if (it.y - ITEM_H / 2 > LH) remove = true;
+    if (remove) {
+      itemCount--;
+      const t = items[i]; items[i] = items[itemCount]; items[itemCount] = t;
+    }
+  }
+}
+
+function update(dt) {
+  updateParticles(dt);
+  for (let i = popups.length - 1; i >= 0; i--) { popups[i].t += dt; if (popups[i].t > 0.9) popups.splice(i, 1); }
+  if (flash > 0) flash = Math.max(0, flash - dt * 1.6);
+  if (state === 'clear') { clearT += dt; return; }
+  if (state !== 'playing') return;
+
+  const sp = ballSpeed();
+  const n = Math.max(1, Math.ceil(sp * dt / (BALL_RADIUS * 0.8))); // 1ステップの移動量を半径未満に
+  const h = dt / n;
+  for (let i = ballCount - 1; i >= 0; i--) {
+    const b = balls[i];
+    let dead = false;
+    for (let k = 0; k < n; k++) {
+      if (stepBall(b, h)) { dead = true; break; }
+    }
+    if (dead) { removeBall(i); continue; }
+    if (b.fire) pushTrail(b);
+  }
+  if (remaining === 0) { onClear(); return; }
+  updateItems(dt);
+  if (ballCount === 0) onGameOver();
+}
+
+// =====================================================================
+//  描画
+// =====================================================================
+function roundRectPath(c, x, y, w, h, r) {
+  c.moveTo(x + r, y); c.lineTo(x + w - r, y); c.arcTo(x + w, y, x + w, y + r, r);
+  c.lineTo(x + w, y + h - r); c.arcTo(x + w, y + h, x + w - r, y + h, r);
+  c.lineTo(x + r, y + h); c.arcTo(x, y + h, x, y + h - r, r);
+  c.lineTo(x, y + r); c.arcTo(x, y, x + r, y, r); c.closePath();
+}
+function drawParticles() {
+  for (let col = 0; col < PARTICLE_COLORS.length; col++) {
+    ctx.fillStyle = PARTICLE_COLORS[col];
+    for (let i = 0; i < pCount; i++) {
+      if (pCol[i] !== col) continue;
+      ctx.globalAlpha = pLife[i] / pMax[i];
+      const s = pSize[i];
+      ctx.fillRect(pX[i] - s / 2, pY[i] - s / 2, s, s);
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+function drawItems() {
+  if (!itemCount) return;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = '800 12px -apple-system, "Hiragino Sans", sans-serif';
+  for (let i = 0; i < itemCount; i++) {
+    const it = items[i];
+    const fill = it.type === 'fire' ? FIRE_COLOR : (it.type === 'x3' ? '#FFFFFF' : BLOCK_COLOR);
+    ctx.beginPath(); roundRectPath(ctx, it.x - ITEM_W / 2, it.y - ITEM_H / 2, ITEM_W, ITEM_H, ITEM_H / 2);
+    ctx.fillStyle = fill; ctx.fill();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = it.type === 'x3' ? BLOCK_COLOR : '#FFFFFF'; ctx.stroke();
+    ctx.fillStyle = it.type === 'x3' ? BLOCK_BORDER_COLOR : '#FFFFFF';
+    ctx.fillText(ITEM_LABEL[it.type], it.x, it.y + 1);
+  }
+}
+function drawPaddle() {
+  ctx.beginPath();
+  roundRectPath(ctx, paddle.x - PADDLE_WIDTH / 2, paddleY - PADDLE_HEIGHT / 2, PADDLE_WIDTH, PADDLE_HEIGHT, PADDLE_HEIGHT / 2);
+  ctx.fillStyle = PADDLE_COLOR; ctx.fill();
+}
+function drawBalls() {
+  const r = BALL_RADIUS, TAU = Math.PI * 2;
+  let fireCount = 0;
+  ctx.beginPath();
+  for (let i = 0; i < ballCount; i++) {
+    const b = balls[i];
+    if (b.fire) { fireCount++; continue; }
+    ctx.moveTo(b.x + r, b.y); ctx.arc(b.x, b.y, r, 0, TAU);
+  }
+  ctx.fillStyle = BALL_COLOR; ctx.fill();
+  if (!fireCount) return;
+  // 🔥：残像 → 光 → 本体（色ごとにまとめて描いて軽くする）
+  ctx.fillStyle = FIRE_COLOR;
+  for (let k = 1; k <= FIRE_TRAIL_LEN; k++) {
+    const rr = r * (1 - k * 0.1);
+    ctx.globalAlpha = 0.4 * (1 - k / (FIRE_TRAIL_LEN + 1));
+    ctx.beginPath();
+    for (let i = 0; i < ballCount; i++) {
+      const b = balls[i];
+      if (!b.fire) continue;
+      const idx = ((b.th - k) % FIRE_TRAIL_LEN + FIRE_TRAIL_LEN) % FIRE_TRAIL_LEN;
+      const tx = b.trail[idx * 2], ty = b.trail[idx * 2 + 1];
+      ctx.moveTo(tx + rr, ty); ctx.arc(tx, ty, rr, 0, TAU);
+    }
+    ctx.fill();
+  }
+  ctx.globalAlpha = 0.3;
+  ctx.beginPath();
+  for (let i = 0; i < ballCount; i++) { const b = balls[i]; if (b.fire) { ctx.moveTo(b.x + r * 1.8, b.y); ctx.arc(b.x, b.y, r * 1.8, 0, TAU); } }
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.beginPath();
+  for (let i = 0; i < ballCount; i++) { const b = balls[i]; if (b.fire) { ctx.moveTo(b.x + r, b.y); ctx.arc(b.x, b.y, r, 0, TAU); } }
+  ctx.fill();
+}
+function drawPopups() {
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (const p of popups) {
+    const k = p.t / 0.9;
+    const s = 1 + 0.5 * Math.max(0, 1 - p.t / 0.15);
+    ctx.globalAlpha = 1 - k * k;
+    ctx.font = `900 ${Math.round(26 * s)}px -apple-system, "Hiragino Sans", sans-serif`;
+    ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+    ctx.strokeText(p.text, p.x, p.y - k * 40);
+    ctx.fillStyle = p.color; ctx.fillText(p.text, p.x, p.y - k * 40);
+  }
+  ctx.globalAlpha = 1;
+}
+function drawHUD() {
+  // TikTokのUI（上部タブ・右側ボタン・下部キャプション）を避けて左上に小さく
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const x = 12, y0 = Math.max(56, ch * 0.1);
+  const pct = Math.round(remaining / TOTAL_BLOCKS * 100);
+  const lines = [`SCORE ${score}`, `BALLS ${ballCount}`, `BLOCKS ${pct}%`];
+  ctx.font = '700 11px -apple-system, "Hiragino Sans", sans-serif';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.75)'; ctx.fillStyle = '#FFFFFF';
+  for (let i = 0; i < lines.length; i++) {
+    ctx.strokeText(lines[i], x, y0 + i * 14);
+    ctx.fillText(lines[i], x, y0 + i * 14);
+  }
+}
+function render() {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  if (state === 'title' || !srcCanvas) return;
+  const s = scale * dpr;
+
+  if (state === 'clear') {
+    // ブロック領域の画像 → 元画像の全面表示へフェード
+    const k = clamp(clearT / 0.9, 0, 1), e = k * k * (3 - 2 * k);
+    if (e < 1) { ctx.globalAlpha = 1 - e; ctx.drawImage(blockLayer, layerX, layerY); }
+    const [x, y, w, h] = containRect(srcCanvas, canvas.width, canvas.height);
+    ctx.globalAlpha = e;
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(srcCanvas, x, y, w, h);
+    ctx.globalAlpha = 1;
+    ctx.setTransform(s, 0, 0, s, offX * dpr, offY * dpr);
+    drawParticles();
+    if (clearT < CLEAR_TEXT_DURATION) {
+      const a = clearT < 0.25 ? clearT / 0.25 : (clearT > CLEAR_TEXT_DURATION - 0.5 ? (CLEAR_TEXT_DURATION - clearT) / 0.5 : 1);
+      const pop = 1 + 0.6 * Math.max(0, 1 - clearT / 0.25);
+      ctx.globalAlpha = clamp(a, 0, 1);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = `900 ${Math.round(64 * pop)}px -apple-system, "Hiragino Sans", sans-serif`;
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = 10; ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.strokeText('CLEAR!', LW / 2, LH * 0.45);
+      ctx.lineWidth = 4; ctx.strokeStyle = '#FFFFFF'; ctx.strokeText('CLEAR!', LW / 2, LH * 0.45);
+      ctx.fillStyle = BLOCK_COLOR; ctx.fillText('CLEAR!', LW / 2, LH * 0.45);
+      ctx.globalAlpha = 1;
+    }
+    return;
+  }
+
+  ctx.drawImage(blockLayer, layerX, layerY);
+  ctx.setTransform(s, 0, 0, s, offX * dpr, offY * dpr);
+  drawParticles();
+  drawItems();
+  if (state !== 'over') drawPaddle();
+  drawBalls();
+  drawPopups();
+  if (flash > 0) {
+    ctx.globalAlpha = flash; ctx.fillStyle = flashColor;
+    ctx.fillRect(0, 0, LW, LH);
+    ctx.globalAlpha = 1;
+  }
+  if (settings.hud) drawHUD();
+}
+
+// =====================================================================
+//  メインループ（経過時間ベース）
+// =====================================================================
+let last = performance.now(), fpsFrames = 0, fpsTime = 0;
+const fpsEl = $('fps');
+function frame(now) {
+  requestAnimationFrame(frame);
+  let dt = (now - last) / 1000; last = now;
+  if (dt > 0.05) dt = 0.05; // タブ復帰などで大きく飛ばないように
+  if (dt < 0) dt = 0;
+  if (!paused && !document.hidden) update(dt);
+  render();
+  if (DEBUG) {
+    fpsFrames++; fpsTime += (now - (frame.prev || now)) / 1000; frame.prev = now;
+    if (fpsTime >= 0.5) {
+      fpsEl.textContent = `FPS ${Math.round(fpsFrames / fpsTime)}\nBALLS ${ballCount}`;
+      fpsFrames = 0; fpsTime = 0;
+    }
+  }
+}
+
+// =====================================================================
+//  入力（画面のどこでも相対ドラッグ、タップで発射）
+// =====================================================================
+let activePointer = null, lastPX = 0, downX = 0, downY = 0, downT = 0;
+canvas.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  ensureAudio();
+  activePointer = e.pointerId; lastPX = e.clientX;
+  downX = e.clientX; downY = e.clientY; downT = performance.now();
+  try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+});
+canvas.addEventListener('pointermove', (e) => {
+  if (e.pointerId !== activePointer) return;
+  const dx = e.clientX - lastPX; lastPX = e.clientX;
+  if (paused || (state !== 'ready' && state !== 'playing')) return;
+  paddle.x = clamp(paddle.x + dx / scale * PADDLE_SENSITIVITY, PADDLE_WIDTH / 2, LW - PADDLE_WIDTH / 2);
+  if (state === 'ready') balls[0].x = paddle.x;
+});
+canvas.addEventListener('pointerup', (e) => {
+  if (e.pointerId !== activePointer) return;
+  activePointer = null;
+  const isTap = Math.hypot(e.clientX - downX, e.clientY - downY) < 12 && performance.now() - downT < 500;
+  if (!isTap || paused) return;
+  if (state === 'ready') launch();
+  else if (state === 'clear' && clearT >= CLEAR_TEXT_DURATION) showClearButtons(true);
+});
+canvas.addEventListener('pointercancel', (e) => { if (e.pointerId === activePointer) activePointer = null; });
+
+// スクロール・ピンチ・ダブルタップ拡大・長押しメニューを無効化
+const stop = (e) => e.preventDefault();
+canvas.addEventListener('touchstart', stop, { passive: false });
+document.addEventListener('touchmove', stop, { passive: false });
+document.addEventListener('touchstart', (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+document.addEventListener('gesturestart', stop, { passive: false });
+document.addEventListener('gesturechange', stop, { passive: false });
+document.addEventListener('dblclick', stop, { passive: false });
+document.addEventListener('contextmenu', stop);
+let lastTouchEnd = 0;
+document.addEventListener('touchend', (e) => {
+  const now = Date.now();
+  if (now - lastTouchEnd < 350 && e.target === canvas) e.preventDefault();
+  lastTouchEnd = now;
+}, { passive: false });
+
+window.addEventListener('resize', layout);
+window.addEventListener('orientationchange', () => setTimeout(layout, 200));
+document.addEventListener('visibilitychange', () => { last = performance.now(); });
+
+// =====================================================================
+//  タイトル画面：画像の読み込み（端末内のみ。送信しない）
+// =====================================================================
+const fileInput = $('file'), startBtn = $('start');
+$('pick').addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => {
+  const f = fileInput.files && fileInput.files[0];
+  fileInput.value = '';
+  if (!f) return;
+  const url = URL.createObjectURL(f);
+  const img = new Image();
+  img.onload = () => {
+    const screenMax = Math.max(screen.width || 0, screen.height || 0, window.innerWidth, window.innerHeight);
+    const maxSide = Math.min(MAX_IMAGE_SIDE, Math.round(screenMax * Math.min(window.devicePixelRatio || 1, MAX_DPR)));
+    const w = img.naturalWidth, h = img.naturalHeight;
+    const k = Math.min(1, maxSide / Math.max(w, h));
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
+    const cc = c.getContext('2d');
+    cc.imageSmoothingEnabled = true; cc.imageSmoothingQuality = 'high';
+    cc.drawImage(img, 0, 0, c.width, c.height);
+    URL.revokeObjectURL(url);
+    srcCanvas = c;
+    drawPreview();
+    startBtn.disabled = false;
+  };
+  img.onerror = () => {
+    URL.revokeObjectURL(url);
+    alert('画像を読み込めませんでした。別の画像を選んでください。');
+  };
+  img.src = url;
+});
+function drawPreview() {
+  const pv = $('preview'), box = $('preview-box');
+  const r = Math.min(window.devicePixelRatio || 1, 3);
+  pv.width = Math.round(176 * r); pv.height = Math.round(236 * r);
+  const pc = pv.getContext('2d');
+  pc.fillStyle = '#000'; pc.fillRect(0, 0, pv.width, pv.height);
+  const [x, y, w, h] = containRect(srcCanvas, pv.width, pv.height);
+  pc.imageSmoothingQuality = 'high';
+  pc.drawImage(srcCanvas, x, y, w, h);
+  pv.classList.remove('hidden');
+  $('preview-empty').classList.add('hidden');
+  box.classList.add('has-image');
+}
+startBtn.addEventListener('click', () => { if (srcCanvas) startGame(); });
+$('retry').addEventListener('click', startGame);
+$('to-title').addEventListener('click', toTitle);
+// クリア画面：ボタン以外をタップすると画像だけの表示に戻す
+$('end').addEventListener('click', (e) => { if (state === 'clear' && e.target === $('end')) showClearButtons(false); });
+
+// =====================================================================
+//  設定パネル
+// =====================================================================
+const optHud = $('opt-hud'), optSound = $('opt-sound'), optSpeed = $('opt-speed');
+function syncSettingsUI() {
+  optHud.checked = settings.hud; optSound.checked = settings.sound;
+  for (const b of optSpeed.querySelectorAll('button')) b.classList.toggle('on', b.dataset.v === settings.speed);
+}
+$('gear').addEventListener('click', () => { syncSettingsUI(); paused = true; $('settings').classList.remove('hidden'); });
+$('settings-close').addEventListener('click', () => { $('settings').classList.add('hidden'); paused = false; last = performance.now(); });
+optHud.addEventListener('change', () => { settings.hud = optHud.checked; saveSettings(); });
+optSound.addEventListener('change', () => { settings.sound = optSound.checked; saveSettings(); if (settings.sound) { ensureAudio(); sfx('paddle'); } });
+optSpeed.addEventListener('click', (e) => {
+  const v = e.target && e.target.dataset && e.target.dataset.v;
+  if (!v || !BALL_SPEEDS[v]) return;
+  settings.speed = v; saveSettings(); syncSettingsUI();
+  // 飛んでいるボールの速さも合わせる（向きはそのまま）
+  const sp = ballSpeed();
+  for (let i = 0; i < ballCount; i++) {
+    const b = balls[i], len = Math.hypot(b.vx, b.vy);
+    if (len > 0) { b.vx = b.vx / len * sp; b.vy = b.vy / len * sp; }
+  }
+});
+
+// =====================================================================
+//  デバッグ（?debug=1）
+// =====================================================================
+function runLotterySimulation(N) {
+  N = N || 1000;
+  const threshold = Math.ceil(TOTAL_BLOCKS * FIRE_MIN_REMAINING_RATIO);
+  const count = () => ({ x3: 0, p3: 0, fire: 0, none: 0 });
+  const fmt = (c) => ({ '×3': `${c.x3} (${(c.x3 / N * 100).toFixed(1)}%)`, '+3': `${c.p3} (${(c.p3 / N * 100).toFixed(1)}%)`, '🔥': `${c.fire} (${(c.fire / N * 100).toFixed(1)}%)`, 'なし': `${c.none} (${(c.none / N * 100).toFixed(1)}%)` });
+  // A: 残り80%以上（🔥が出てよい）
+  const A = count(); for (let i = 0; i < N; i++) A[rollItem(TOTAL_BLOCKS - 1, TOTAL_BLOCKS) || 'none']++;
+  // B: 残り80%未満（🔥は出てはいけない）
+  const B = count(); for (let i = 0; i < N; i++) B[rollItem(threshold - 1, TOTAL_BLOCKS) || 'none']++;
+  // C: 実際のゲームと同じ順に1000ブロック壊す（140個 × 約7ゲーム分）
+  const C = count(); let fireWhenLow = 0, rem = TOTAL_BLOCKS;
+  for (let i = 0; i < N; i++) {
+    if (rem === 0) rem = TOTAL_BLOCKS;
+    rem--;
+    const t = rollItem(rem, TOTAL_BLOCKS);
+    C[t || 'none']++;
+    if (t === 'fire' && rem < threshold) fireWhenLow++;
+  }
+  console.log(`%c[抽選シミュレーション] 各${N}回 / 🔥の条件: 壊した後の残りが ${threshold}/${TOTAL_BLOCKS} 個以上`, 'color:#FF69B4;font-weight:bold');
+  console.table({ 'A: 残り80%以上': fmt(A), 'B: 残り80%未満': fmt(B), 'C: 実戦の順番': fmt(C) });
+  const ok = B.fire === 0 && fireWhenLow === 0;
+  console.log(ok ? '✅ 残り80%未満で🔥は一度も出ていません（期待値 A: ×3≈20% +3≈20% 🔥≈20% なし≈40% / B: 🔥=0% なし≈60%）'
+                 : `❌ 仕様違反: 残り80%未満で🔥が出ました (B=${B.fire}, C=${fireWhenLow})`);
+  return { A, B, C, fireWhenLow, ok };
+}
+if (DEBUG) {
+  for (const b of $('debug').querySelectorAll('button')) {
+    b.addEventListener('click', () => {
+      if (state !== 'ready' && state !== 'playing') return;
+      spawnItem(b.dataset.item, paddle.x, paddleY - 140);
+    });
+  }
+  runLotterySimulation(1000);
+  // コンソールからの確認用
+  window.__game = {
+    get state() { return state; }, get ballCount() { return ballCount; }, get remaining() { return remaining; },
+    get fireCount() { let n = 0; for (let i = 0; i < ballCount; i++) if (balls[i].fire) n++; return n; },
+    balls: () => balls.slice(0, ballCount), paddle, activateItem, runLotterySimulation, launch,
+    breakAll: () => { for (let i = 0; i < TOTAL_BLOCKS; i++) if (alive[i]) breakBlock(i); itemCount = 0; },
+    geometry: () => ({ LW, LH, regionH, paddleY, blockW, blockH }),
+  };
+}
+
+syncSettingsUI();
+layout();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

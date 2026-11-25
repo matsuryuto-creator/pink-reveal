@@ -111,7 +111,6 @@
 <div id="settings" class="screen hidden">
   <div class="panel">
     <h2>設定</h2>
-    <label class="row"><span>HUD表示</span><input type="checkbox" class="switch" id="opt-hud"></label>
     <label class="row"><span>効果音</span><input type="checkbox" class="switch" id="opt-sound"></label>
     <div class="row"><span>ボール速度</span>
       <div class="seg" id="opt-speed">
@@ -135,17 +134,17 @@
 // =====================================================================
 //  調整用の定数（README に一覧あり）
 // =====================================================================
-const BLOCK_COLS = 10;                 // ブロックの列数
-const BLOCK_ROWS = 14;                 // ブロックの行数
+const BLOCK_COLS = 14;                 // ブロックの列数
+const BLOCK_ROWS = 18;                 // ブロックの行数
 const BLOCK_AREA_RATIO = 0.6;          // 画面上部のうちブロック領域が占める割合
 const BLOCK_COLOR = '#FF69B4';         // ブロックの基本色
 const BLOCK_BORDER_COLOR = '#C2185B';  // ブロックの枠線色
 const BLOCK_HIGHLIGHT = 'rgba(255,255,255,0.28)'; // 上辺のハイライト
 const BLOCK_SCORE = 10;                // 1ブロックの得点
 
-const ITEM_PROB_X3 = 0.2;              // ×3 の確率      (r < 0.2)
-const ITEM_PROB_P3 = 0.2;              // +3 の確率      (0.2 <= r < 0.4)
-const ITEM_PROB_FIRE = 0.2;            // 🔥 の確率      (0.4 <= r < 0.6 かつ残り80%以上)
+const ITEM_PROB_X3 = 0.05;             // ×3 の確率      (r < 0.05)
+const ITEM_PROB_P3 = 0.05;             // +3 の確率      (0.05 <= r < 0.10)
+const ITEM_PROB_FIRE = 0.05;           // 🔥 の確率      (0.10 <= r < 0.15 かつ残り80%以上)
 const FIRE_MIN_REMAINING_RATIO = 0.8;  // 🔥が出るのに必要な残りブロック割合
 const ITEM_FALL_SPEED = 170;           // アイテムの落下速度（論理px/秒）
 
@@ -189,10 +188,9 @@ const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const rand = (a, b) => a + Math.random() * (b - a);
 
 // ---------- 設定（端末内のlocalStorageに保存。使えなくても動く） ----------
-const settings = { hud: true, sound: true, speed: 'normal' };
+const settings = { sound: true, speed: 'normal' };
 try {
   const s = JSON.parse(localStorage.getItem('pinkreveal-settings') || '{}');
-  if (typeof s.hud === 'boolean') settings.hud = s.hud;
   if (typeof s.sound === 'boolean') settings.sound = s.sound;
   if (BALL_SPEEDS[s.speed]) settings.speed = s.speed;
 } catch (e) {}
@@ -694,20 +692,6 @@ function drawPopups() {
   }
   ctx.globalAlpha = 1;
 }
-function drawHUD() {
-  // TikTokのUI（上部タブ・右側ボタン・下部キャプション）を避けて左上に小さく
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const x = 12, y0 = Math.max(56, ch * 0.1);
-  const pct = Math.round(remaining / TOTAL_BLOCKS * 100);
-  const lines = [`SCORE ${score}`, `BALLS ${ballCount}`, `BLOCKS ${pct}%`];
-  ctx.font = '700 11px -apple-system, "Hiragino Sans", sans-serif';
-  ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-  ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.75)'; ctx.fillStyle = '#FFFFFF';
-  for (let i = 0; i < lines.length; i++) {
-    ctx.strokeText(lines[i], x, y0 + i * 14);
-    ctx.fillText(lines[i], x, y0 + i * 14);
-  }
-}
 function render() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalAlpha = 1;
@@ -753,7 +737,6 @@ function render() {
     ctx.fillRect(0, 0, LW, LH);
     ctx.globalAlpha = 1;
   }
-  if (settings.hud) drawHUD();
 }
 
 // =====================================================================
@@ -879,14 +862,13 @@ $('end').addEventListener('click', (e) => { if (state === 'clear' && e.target ==
 // =====================================================================
 //  設定パネル
 // =====================================================================
-const optHud = $('opt-hud'), optSound = $('opt-sound'), optSpeed = $('opt-speed');
+const optSound = $('opt-sound'), optSpeed = $('opt-speed');
 function syncSettingsUI() {
-  optHud.checked = settings.hud; optSound.checked = settings.sound;
+  optSound.checked = settings.sound;
   for (const b of optSpeed.querySelectorAll('button')) b.classList.toggle('on', b.dataset.v === settings.speed);
 }
 $('gear').addEventListener('click', () => { syncSettingsUI(); paused = true; $('settings').classList.remove('hidden'); });
 $('settings-close').addEventListener('click', () => { $('settings').classList.add('hidden'); paused = false; last = performance.now(); });
-optHud.addEventListener('change', () => { settings.hud = optHud.checked; saveSettings(); });
 optSound.addEventListener('change', () => { settings.sound = optSound.checked; saveSettings(); if (settings.sound) { ensureAudio(); sfx('paddle'); } });
 optSpeed.addEventListener('click', (e) => {
   const v = e.target && e.target.dataset && e.target.dataset.v;
@@ -924,7 +906,8 @@ function runLotterySimulation(N) {
   console.log(`%c[抽選シミュレーション] 各${N}回 / 🔥の条件: 壊した後の残りが ${threshold}/${TOTAL_BLOCKS} 個以上`, 'color:#FF69B4;font-weight:bold');
   console.table({ 'A: 残り80%以上': fmt(A), 'B: 残り80%未満': fmt(B), 'C: 実戦の順番': fmt(C) });
   const ok = B.fire === 0 && fireWhenLow === 0;
-  console.log(ok ? '✅ 残り80%未満で🔥は一度も出ていません（期待値 A: ×3≈20% +3≈20% 🔥≈20% なし≈40% / B: 🔥=0% なし≈60%）'
+  const pc = (v) => Math.round(v * 1000) / 10 + '%';
+  console.log(ok ? `✅ 残り80%未満で🔥は一度も出ていません（期待値 A: ×3≈${pc(ITEM_PROB_X3)} +3≈${pc(ITEM_PROB_P3)} 🔥≈${pc(ITEM_PROB_FIRE)} / B: 🔥=0%）`
                  : `❌ 仕様違反: 残り80%未満で🔥が出ました (B=${B.fire}, C=${fireWhenLow})`);
   return { A, B, C, fireWhenLow, ok };
 }
